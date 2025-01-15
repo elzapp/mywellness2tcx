@@ -14,6 +14,7 @@ def iso(dt):
     return dt.strftime('%Y-%m-%dT%H:%M:%SZ')
 
 
+
 def mywellness2tcx(in_file, out_file, start_dt):
     with open(in_file) as fp:
         data = json.load(fp)
@@ -28,6 +29,7 @@ def mywellness2tcx(in_file, out_file, start_dt):
     for sample in analitics['samples']:
         dt = start_dt + timedelta(seconds=sample['t'])
         values = dict(zip(fields, sample['vs']))
+        values["t"] = sample["t"]
         samples.append((dt, values))
 
     # Strip point at the end with no activity
@@ -74,7 +76,12 @@ def mywellness2tcx(in_file, out_file, start_dt):
     et.SubElement(activity, 'Id').text = iso(start_dt)
     lap = et.SubElement(activity, 'Lap', StartTime=iso(start_dt))
     track = et.SubElement(lap, 'Track')
-
+    for (dt,sample) in samples:
+        st = sample["t"]
+        heartrates = [hr["hr"] for hr in analitics["hr"] if hr["t"] > st-5 and hr["t"] < st + 5 ]
+        if len(heartrates) > 0:
+            sample["Heartrate"] = int(sum(heartrates) / len(heartrates))
+    #print(samples)
     for dt, sample in samples:
         point = et.SubElement(track, 'Trackpoint')
         et.SubElement(point, 'Time').text = iso(dt)
@@ -84,6 +91,9 @@ def mywellness2tcx(in_file, out_file, start_dt):
         tpx = et.SubElement(extensions, 'TPX', xmlns=AX_NS)
         et.SubElement(tpx, 'Speed').text = str(sample['Speed'] / 3.6)
         et.SubElement(tpx, 'Watts').text = str(sample['Power'])
+        if "Heartrate" in sample:
+            hrb = et.SubElement(point, "HeartRateBpm")
+            et.SubElement(hrb,"Value").text=str(sample["Heartrate"])
 
     doc = et.ElementTree(tcd)
 
